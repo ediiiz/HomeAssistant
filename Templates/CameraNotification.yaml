@@ -1,300 +1,88 @@
 blueprint:
-  name: Configurable Camera Snapshot & Notification on Motion
-  description: >-
-    Take snapshots and send highly configurable notifications (including basic actions) 
-    on motion detection. Handles Android/iOS differences. 
-    NOTE: Handling responses to actions requires a separate automation.
+  name: Camera Snapshot & Notification on Motion (with Klingel Channel) # Added channel info to name
+  description: Take snapshots and send notifications on motion detection, using the 'Klingel' channel for Android.
   domain: automation
   input:
-    # --- Trigger & Core Logic ---
-    motion_sensor:
-      name: Motion Sensor
-      description: The sensor which triggers the snapshot creation and notification.
-      selector:
-        entity:
-          domain: binary_sensor
     camera_device:
       name: Camera
-      description: The camera which creates the snapshot.
+      description: The camera which creates the snapshot
       selector:
         entity:
           domain: camera    
-    condition_auto:
-      name: Automation Conditions
-      description: Optional conditions for running this automation.
-      default: []
+    is_ios:
+      name: Is it an iOS device?
+      description: Toggle if your selected device runs iOS, default is Android
       selector:
-        condition: {}
-
-    # --- Snapshot Settings ---
+        boolean:
+      default: false
+    notify_device:
+      name: Device to notify
+      description: Device needs to run the official Home Assistant app to receive notifications
+      selector:
+        device:
+          integration: mobile_app
+    motion_sensor:
+      name: Motion sensor
+      description: The sensor which triggers the snapshot creation
+      selector:
+        entity:
+          domain: binary_sensor
     num_snapshots:
       name: Number of Snapshots
-      description: Number of snapshots to take (between 1 and 5). Only the first is sent.
+      description: Number of snapshots to take (between 1 and 5)
       selector:
         number:
           min: 1
           max: 5
-          step: 1
+          unit_of_measurement: snapshots
       default: 3      
+    condition_auto:
+      name: Add Condition(s) to run this Automation
+      description: Add conditions if needed to run this automation at all. Note, if conditions return `false`, no actions will fire.
+      default: []
+      selector:
+        condition: {}
 
-    # --- Target Device ---
-    notify_device:
-      name: Device to Notify
-      description: Device needs to run the official Home Assistant app.
-      selector:
-        device:
-          integration: mobile_app
-    is_ios:
-      name: Is it an iOS/macOS/watchOS device?
-      description: Toggle ON for Apple devices, OFF for Android. Affects notification options.
-      selector:
-        boolean:
-      default: false
-
-    # --- Basic Notification Content ---
-    notification_title:
-      name: Notification Title
-      description: "Title of the notification. Default uses motion sensor name."
-      selector:
-        text:
-      default: "{{ motion_name }} Detected" # Default uses variable defined later
-    notification_message:
-      name: Notification Message
-      description: "Main text content of the notification. Default uses motion sensor name."
-      selector:
-        text:
-      default: "Motion detected by {{ motion_name }}." # Default uses variable defined later
-    notification_tag:
-      name: Notification Tag (Optional)
-      description: "An identifier used to replace/update previous notifications with the same tag."
-      selector:
-        text:
-      default: ""
-    notification_group:
-      name: Notification Group (Optional)
-      description: "Groups notifications (iOS/Android). On Android, also sets the summary group."
-      selector:
-        text:
-      default: ""
-
-    # --- Android Specific Options ---
-    android_channel:
-      name: (Android) Notification Channel (Optional)
-      description: "Specify a notification channel configured in the Android Companion App (e.g., 'Klingel')."
-      selector:
-        text:
-      default: "" # Changed default to empty, user can add 'Klingel' if needed
-    android_sticky:
-      name: (Android) Sticky Notification
-      description: "If ON, the notification cannot be dismissed by swiping."
-      selector:
-        boolean:
-      default: false
-    
-    # --- iOS Specific Options ---
-    ios_subtitle:
-      name: (iOS) Notification Subtitle (Optional)
-      description: "Text displayed below the title on iOS."
-      selector:
-        text:
-      default: ""
-    ios_interruption_level:
-      name: (iOS) Interruption Level
-      description: "Priority of the notification on iOS (active=normal, time-sensitive=breaks summary, critical=breaks DND - requires special entitlement)."
-      selector:
-        select:
-          options:
-            - "active"
-            - "passive"
-            - "time-sensitive"
-            - "critical"
-      default: "active" # Defaulting to standard active level
-    ios_sound:
-      name: (iOS) Sound (Optional)
-      description: "Notification sound. Default is device setting. Enter filename (e.g., 'sound.caf') or YAML dict for critical sound (see docs)."
-      selector:
-        text:
-      default: "" # Default uses device setting
-    ios_badge:
-      name: (iOS) Badge Number (Optional)
-      description: "Set the app icon badge number."
-      selector:
-        number:
-          min: 0
-          step: 1
-          mode: box
-      default: "" # Default means no change
-
-    # --- Actionable Notifications (Simplified) ---
-    action_1_id:
-      name: Action 1 - ID (Optional)
-      description: "Unique identifier for the first action (e.g., 'SILENCE_ALARM'). Used in event handling."
-      selector:
-        text:
-      default: ""
-    action_1_title:
-      name: Action 1 - Title
-      description: "Button text for the first action (required if ID is set)."
-      selector:
-        text:
-      default: ""
-    action_2_id:
-      name: Action 2 - ID (Optional)
-      description: "Unique identifier for the second action."
-      selector:
-        text:
-      default: ""
-    action_2_title:
-      name: Action 2 - Title
-      description: "Button text for the second action (required if ID is set)."
-      selector:
-        text:
-      default: ""
-    action_3_id:
-      name: Action 3 - ID (Optional)
-      description: "Unique identifier for the third action."
-      selector:
-        text:
-      default: ""
-    action_3_title:
-      name: Action 3 - Title
-      description: "Button text for the third action (required if ID is set)."
-      selector:
-        text:
-      default: ""
-
-# --- Trigger ---
 trigger:
   platform: state
   entity_id: !input motion_sensor
-  from: 'off' # Trigger only when turning on
   to: 'on'
 
-# --- Variables ---
 variables:
-  # Core entities
-  motion_sensor: !input motion_sensor
   camera_device: !input camera_device
-  notify_device: !input notify_device
-  is_ios: !input is_ios
-
-  # Sensor/Camera derived names
-  motion_name: "{{ state_attr(motion_sensor, 'friendly_name') | default('Unknown Motion Sensor') }}"
-  camera_name: "{{ state_attr(camera_device, 'friendly_name') | default('Unknown Camera') }}"
-  camera_path: "{{ camera_name | lower | replace(' ', '_') }}" # Path for snapshot
-
-  # Snapshot details
+  camera_name: "{{ state_attr(camera_device, 'friendly_name') }}"
+  camera_path: "{{ state_attr(camera_device, 'friendly_name') | lower | replace(' ', '_') }}"
+  motion_sensor: !input motion_sensor
+  motion_name: "{{ state_attr(motion_sensor, 'friendly_name') }}"
+  is_ios: !input 'is_ios'
   num_snapshots: !input num_snapshots
-  snapshot_dir: "./www/snapshots" # Ensure this directory exists under /config
-  snapshot_filename_base: "{{ camera_path }}_snapshot"
-  # Path for notification data (first snapshot) - relative to /config/www
-  snapshot_access_file_path: "/local/snapshots/{{ snapshot_filename_base }}1.jpg" 
+  snapshot_access_file_path: '/local/snapshots/{{ camera_path }}_snapshot1.jpg' # Note: Only the first snapshot is sent
+  condition_auto: !input condition_auto
 
-  # Basic notification content inputs (using defaults if needed)
-  notification_title: !input notification_title
-  notification_message: !input notification_message
-  notification_tag: !input notification_tag
-  notification_group: !input notification_group
-
-  # Android inputs
-  android_channel: !input android_channel
-  android_sticky: !input android_sticky
-
-  # iOS inputs
-  ios_subtitle: !input ios_subtitle
-  ios_interruption_level: !input ios_interruption_level
-  ios_sound: !input ios_sound
-  ios_badge: !input ios_badge
-
-  # Action inputs
-  action_1_id: !input action_1_id
-  action_1_title: !input action_1_title
-  action_2_id: !input action_2_id
-  action_2_title: !input action_2_title
-  action_3_id: !input action_3_id
-  action_3_title: !input action_3_title
-  
-  # Construct actions list
-  actions: >
-    {% set constructed_actions = [] %}
-    {% if action_1_id and action_1_title %}
-      {% set _ = constructed_actions.append({'action': action_1_id, 'title': action_1_title}) %}
-    {% endif %}
-    {% if action_2_id and action_2_title %}
-      {% set _ = constructed_actions.append({'action': action_2_id, 'title': action_2_title}) %}
-    {% endif %}
-    {% if action_3_id and action_3_title %}
-      {% set _ = constructed_actions.append({'action': action_3_id, 'title': action_3_title}) %}
-    {% endif %}
-    {{ constructed_actions if constructed_actions else none }}
-
-# --- Actions ---
 action:
-  - if: # Check conditions first
-      - condition: !input condition_auto
-    then:
-      # 1. Take Snapshots
-      - service: system_log.log # Log snapshot start
-        data:
-          level: debug
-          message: "Taking {{ num_snapshots }} snapshot(s) for {{ camera_name }} to {{ snapshot_dir }}/{{ snapshot_filename_base }}X.jpg"
-      - repeat:
-          count: "{{ num_snapshots }}"
-          sequence:
-            - service: camera.snapshot
-              data:
-                filename: "{{ snapshot_dir }}/{{ snapshot_filename_base }}{{ repeat.index }}.jpg"
-              target:
-                entity_id: "{{ camera_device }}"
-            - delay:
-                milliseconds: 500 # Small delay between snapshots
-      
-      # 2. Send Notification
-      - device_id: !input notify_device
-        domain: mobile_app
-        type: notify
-        title: "{{ notification_title }}" # Use input title
-        message: "{{ notification_message }}" # Use input message
-        data: >
-          {# --- Base Data --- #}
-          {% set base_data = {} %}
-          {% if notification_tag %} {% set base_data = base_data | merge({'tag': notification_tag}) %} {% endif %}
-          {% if notification_group %} {% set base_data = base_data | merge({'group': notification_group}) %} {% endif %}
-          {% if actions %} {% set base_data = base_data | merge({'actions': actions}) %} {% endif %}
+- if:
+  - condition: !input condition_auto
+  then:
+  - repeat:
+      count: "{{ num_snapshots }}"
+      sequence:
+        - service: camera.snapshot
+          data:
+            filename: "./www/snapshots/{{ camera_path }}_snapshot{{ repeat.index }}.jpg"
+          target:
+            entity_id: "{{ camera_device }}"
+        - delay:
+            milliseconds: 500
+  - device_id: !input 'notify_device'
+    domain: mobile_app
+    type: notify
+    title: "{{ motion_name }} Detected"
+    message: "Motion detected by {{ motion_name }}."
+    data: >
+      {# --- MODIFICATION START --- #}
+      {% set android_data = {"image": snapshot_access_file_path, "channel": "Klingel", "importance": high} %}
+      {# --- MODIFICATION END --- #}
+      {% set ios_data = {"attachment": {"url": snapshot_access_file_path, "content_type": "JPEG", "push": {"interruption-level": "time-sensitive"}}} %}
+      {{ ios_data if is_ios else android_data }}
 
-          {# --- Platform Specific Data --- #}
-          {% if is_ios %}
-            {# iOS specific #}
-            {% set ios_data = {'attachment': {'url': snapshot_access_file_path, 'content-type': 'jpeg'}} %} {# Fixed content-type key #}
-            {% if ios_subtitle %} {% set ios_data = ios_data | merge({'subtitle': ios_subtitle}) %} {% endif %}
-            
-            {# iOS Push options #}
-            {% set ios_push_data = {} %}
-            {% if ios_interruption_level %} {% set ios_push_data = ios_push_data | merge({'interruption-level': ios_interruption_level}) %} {% endif %}
-            {% if ios_badge is number %} {% set ios_push_data = ios_push_data | merge({'badge': ios_badge}) %} {% endif %}
-            {% if ios_sound %} 
-              {# Try parsing sound as YAML dict (for critical sounds), otherwise use as string #}
-              {% set sound_obj = ios_sound | from_yaml if ios_sound.startswith('{') else ios_sound %}
-              {% set ios_push_data = ios_push_data | merge({'sound': sound_obj}) %} 
-            {% endif %}
-            {% if ios_push_data %} {% set ios_data = ios_data | merge({'push': ios_push_data}) %} {% endif %}
-            
-            {{ base_data | merge(ios_data) }}
-
-          {% else %}
-            {# Android specific #}
-            {% set android_data = {'image': snapshot_access_file_path} %}
-            {% if android_channel %} {% set android_data = android_data | merge({'channel': android_channel}) %} {% endif %}
-            {% if android_sticky %} {% set android_data = android_data | merge({'sticky': 'true'}) %} {% endif %} 
-            {# Add other Android options here if needed e.g. color, vibrationPattern etc #}
-            
-            {{ base_data | merge(android_data) }}
-          {% endif %}
-    else: # Log if conditions not met
-      - service: system_log.log
-        data:
-          level: debug
-          message: "Automation {{ automation_id }}: Conditions not met. Skipping actions."
-
-# --- Mode ---
-mode: single # Ensures only one instance runs at a time
+mode: single
