@@ -79,7 +79,7 @@ action:
     title: "{{ motion_name }} Detected"
     message: "Motion detected by {{ motion_name }}."
     data: >
-      {% set android_data = {"image": snapshot_access_file_path, "channel": "Doorbell", "importance": high} %}
+      {% set android_data = {"image": snapshot_access_file_path, "channel": "Doorbell", "importance": "high"} %}
       {% set ios_data = {"attachment": {"url": snapshot_access_file_path, "content_type": "JPEG", "push": {"interruption-level": "time-sensitive"}}} %}
       {{ ios_data if is_ios else android_data }}
 
