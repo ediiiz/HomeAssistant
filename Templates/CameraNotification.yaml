@@ -1,6 +1,6 @@
 blueprint:
-  name: Camera Snapshot & Notification on Motion
-  description: Take snapshots and send notifications on motion detection
+  name: Camera Snapshot & Notification on Motion (with Klingel Channel) # Added channel info to name
+  description: Take snapshots and send notifications on motion detection, using the 'Klingel' channel for Android.
   domain: automation
   input:
     camera_device:
@@ -56,7 +56,7 @@ variables:
   motion_name: "{{ state_attr(motion_sensor, 'friendly_name') }}"
   is_ios: !input 'is_ios'
   num_snapshots: !input num_snapshots
-  snapshot_access_file_path: '/local/snapshots/{{ camera_path }}_snapshot1.jpg'
+  snapshot_access_file_path: '/local/snapshots/{{ camera_path }}_snapshot1.jpg' # Note: Only the first snapshot is sent
   condition_auto: !input condition_auto
 
 action:
@@ -79,8 +79,10 @@ action:
     title: "{{ motion_name }} Detected"
     message: "Motion detected by {{ motion_name }}."
     data: >
-      {% set android_data = {"image": snapshot_access_file_path} %}
-      {% set ios_data = {"attachment": {"url": snapshot_access_file_path, "content_type": "JPEG"}} %}
+      {# --- MODIFICATION START --- #}
+      {% set android_data = {"image": snapshot_access_file_path, "channel": "Klingel", "importance": high} %}
+      {# --- MODIFICATION END --- #}
+      {% set ios_data = {"attachment": {"url": snapshot_access_file_path, "content_type": "JPEG", "push": {"interruption-level": "time-sensitive"}}} %}
       {{ ios_data if is_ios else android_data }}
 
 mode: single
